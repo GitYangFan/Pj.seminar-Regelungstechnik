@@ -18,7 +18,7 @@ def ode(x, u):
                   [0, 0],
                   [0, -1],
                   [1, 0]])
-    dx = A @ x + B @ u
+    dx = np.dot(A, x) + np.dot(B, u)
 
     return dx
 
@@ -62,3 +62,4 @@ def sim(x0, u_k, timestamp):
         x_all = np.append(x_all, x, axis=1)
 
     return x_all
+
