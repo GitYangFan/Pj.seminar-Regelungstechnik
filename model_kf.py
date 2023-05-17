@@ -53,19 +53,19 @@ def sim_kf(x0, data, Q, R, P0):
     # get U: a_z w_y
     u_k = np.append(data[:, 13].reshape(1, -1), data[:, 2].reshape(1, -1), axis=0)  # a_z, w_y, with nan, shape: (2, n)
 
-    # switch, to determind prediction or correction in KF, if False,then correction
+    # switch, to determine prediction or correction in KF, if False,then correction
     switch = np.isnan(data[:, -1])
 
     Ts = np.diff(data[:, 0])
 
     for i in range(u_k.shape[1] - 1):  # the last U is useless
 
-        if switch[i] == True:  # # prediction step
+        if switch[i] is True:  # # prediction step
             u = u_k[:, i]
             x, P = f_kf(x, u, Ts[i], P, Q)
 
         else:
-            # # prediction step using last u
+            # # prediction step using last u, attention: if the first u is NaN, the code will go wrong
             x, P = f_kf(x, u, Ts[i], P, Q)
 
             # # correction step
@@ -81,21 +81,3 @@ def sim_kf(x0, data, Q, R, P0):
     return x_all
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    df_raw = pd.read_csv(r'.\data\data_2023_03_01-16_48_29.csv')
-
-    df = df_raw.iloc[:, 0:31]  # take the data from imu and 'velocity', include global time stamp
-
-    # drop the rows where both imu and 'velocity' are NaN
-    df_imu_vel = df[df.iloc[:, 29].notna() | df.iloc[:, 30].notna()].reset_index(drop=True)
-
-    data = df_imu_vel.to_numpy()
-
-    x0 = [0, 0, 0, 0]
-    Q = np.diag([1, 1, 1, 1])
-    R = np.array([[0.01]])
-    P0 = np.diag([10, 10, 10, 10])
-
-    x_all = sim_kf(x0, data, Q, R, P0)
-    print(x_all.shape)
