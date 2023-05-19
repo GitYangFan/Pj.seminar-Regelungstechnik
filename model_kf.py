@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def ode_kf(x, u, P, Q):
+def ode(x, u, P, Q):
     """
     ODE equations
 
@@ -26,14 +26,14 @@ def ode_kf(x, u, P, Q):
     return dx, dP
 
 
-def f_kf(x, u, Ts, P, Q):  # RK-4 integral
+def f_k(x, u, Ts, P, Q):  # RK-4 integral
 
     x = np.reshape(x, (-1, 1))
     u = np.reshape(u, (-1, 1))
-    k1, kp1 = ode_kf(x, u, P, Q)
-    k2, kp2 = ode_kf(x + Ts / 2 * k1, u, P + Ts / 2 * kp1, Q)
-    k3, kp3 = ode_kf(x + Ts / 2 * k2, u, P + Ts / 2 * kp2, Q)
-    k4, kp4 = ode_kf(x + Ts * k3, u, P + Ts / 2 * kp3, Q)
+    k1, kp1 = ode(x, u, P, Q)
+    k2, kp2 = ode(x + Ts / 2 * k1, u, P + Ts / 2 * kp1, Q)
+    k3, kp3 = ode(x + Ts / 2 * k2, u, P + Ts / 2 * kp2, Q)
+    k4, kp4 = ode(x + Ts * k3, u, P + Ts / 2 * kp3, Q)
 
     x_next = x + 1 / 6 * Ts * (k1 + 2 * k2 + 2 * k3 + k4)
     P_next = P + 1 / 6 * Ts * (kp1 + 2 * kp2 + 2 * kp3 + kp4)
@@ -58,15 +58,16 @@ def sim_kf(x0, data, Q, R, P0):
 
     Ts = np.diff(data[:, 0])
 
+    u = u_k[:, 0]
     for i in range(u_k.shape[1] - 1):  # the last U is useless
 
-        if switch[i] is True:  # # prediction step
+        if switch[i] == True:  # # prediction step
             u = u_k[:, i]
-            x, P = f_kf(x, u, Ts[i], P, Q)
+            x, P = f_k(x, u, Ts[i], P, Q)
 
         else:
-            # # prediction step using last u, attention: if the first u is NaN, the code will go wrong
-            x, P = f_kf(x, u, Ts[i], P, Q)
+            # # prediction step using last u
+            x, P = f_k(x, u, Ts[i], P, Q)
 
             # # correction step
             # get velocity measurement
