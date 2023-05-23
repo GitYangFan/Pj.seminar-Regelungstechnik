@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def ode(x, u, P, Q):
+def ode_kf(x, u, P, Q):
     """
     ODE equations
 
@@ -30,13 +30,19 @@ def f_k(x, u, Ts, P, Q):  # RK-4 integral
 
     x = np.reshape(x, (-1, 1))
     u = np.reshape(u, (-1, 1))
-    k1, kp1 = ode(x, u, P, Q)
-    k2, kp2 = ode(x + Ts / 2 * k1, u, P + Ts / 2 * kp1, Q)
-    k3, kp3 = ode(x + Ts / 2 * k2, u, P + Ts / 2 * kp2, Q)
-    k4, kp4 = ode(x + Ts * k3, u, P + Ts / 2 * kp3, Q)
+    k1, kp1 = ode_kf(x, u, P, Q)
+    k2, kp2 = ode_kf(x + Ts / 2 * k1, u, P + Ts / 2 * kp1, Q)
+    k3, kp3 = ode_kf(x + Ts / 2 * k2, u, P + Ts / 2 * kp2, Q)
+    k4, kp4 = ode_kf(x + Ts * k3, u, P + Ts / 2 * kp3, Q)
 
     x_next = x + 1 / 6 * Ts * (k1 + 2 * k2 + 2 * k3 + k4)
     P_next = P + 1 / 6 * Ts * (kp1 + 2 * kp2 + 2 * kp3 + kp4)
+
+    # 0 <= theta < 2*pi
+    if x_next[2][0] < 0:
+        x_next[2][0] += 2 * np.pi
+    elif x_next[2][0] >= 2 * np.pi:
+        x_next[2][0] -= 2 * np.pi
 
     return x_next, P_next
 
