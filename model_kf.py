@@ -57,7 +57,7 @@ def sim_kf(x0, data, Q, R, P0):
     switch = np.isnan(data[:, -1])
 
     Ts = np.diff(data[:, 0])
-
+    u = u_k[:,0]
     for i in range(u_k.shape[1] - 1):  # the last U is useless
 
         if switch[i] is True:  # # prediction step
