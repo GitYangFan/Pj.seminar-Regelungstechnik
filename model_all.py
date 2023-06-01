@@ -48,7 +48,7 @@ def f_k_all(x, u, Ts, P, Q):  # RK-4 integral
     return x_next, P_next
 
 
-def sim_all(x0, data, Q, R_v, R_t, P0):
+def sim_all(x0, u_k, Ts, y_k_vel, y_k_tf, s_imu, s_vel, s_tf, Q, R_v, R_t, P0):
     """
 
     :param R_v: R for velocity
@@ -68,18 +68,8 @@ def sim_all(x0, data, Q, R_v, R_t, P0):
                     [0, 1, 0, 0],
                     [0, 0, 1, 0]])
 
-    # get input U: [a_z, w_y].T
-    u_k = np.append(data[:, 13].reshape(1, -1), data[:, 2].reshape(1, -1), axis=0)  # a_z, w_y, with nan, shape: (2, n)
-    u = np.array([[0.],[0.]])  # initialize the input
 
-    # get time steps
-    Ts = np.diff(data[:, 0])
-
-    # if the data are NaN, True
-    s_imu = np.isnan(data[:, 29])
-    s_vel = np.isnan(data[:, 30])
-    s_tf = np.isnan(data[:, 31])
-
+    u = np.array([[0.], [0.]])  # initialize the input
     for i in range(u_k.shape[1] - 1):  # the last U is useless
 
         # # pure prediction step
@@ -93,7 +83,7 @@ def sim_all(x0, data, Q, R_v, R_t, P0):
             x, P = f_k_all(x, u, Ts[i], P, Q)
 
             # correction step
-            y = - data[i, 30].reshape(1, 1) / 1000  # get velocity measurement, unit of data is mm/s and data is inverse
+            y = y_k_vel[i].reshape(1, 1)
 
             K = P @ C_v.T @ np.linalg.inv(C_v @ P @ C_v.T + R_v)
             x = x + K @ (y - C_v @ x)
@@ -105,10 +95,11 @@ def sim_all(x0, data, Q, R_v, R_t, P0):
             x, P = f_k_all(x, u, Ts[i], P, Q)
 
             # correction step
-            rot = data[i, 32:36]  # rot = [w, x, y, z]
-            _, _, yaw = euler_from_quaternion(rot[1], rot[2], rot[3], rot[0])
+            # rot = data[i, 32:36]  # rot = [w, x, y, z]
+            # _, _, yaw = euler_from_quaternion(rot[1], rot[2], rot[3], rot[0])
+            # y = np.array([[data[i, 36]], [data[i, 37]], [yaw]])  # get tf measurement y = [x,y,theta].T
 
-            y = np.array([[data[i, 36]], [data[i, 37]], [yaw]])  # get tf measurement y = [x,y,theta].T
+            y = y_k_tf[:, i].reshape(-1, 1)
 
             K = P @ C_t.T @ np.linalg.inv(C_t @ P @ C_t.T + R_t)
 

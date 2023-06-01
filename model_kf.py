@@ -47,7 +47,7 @@ def f_k(x, u, Ts, P, Q):  # RK-4 integral
     return x_next, P_next
 
 
-def sim_kf(x0, data, Q, R, P0):
+def sim_kf(x0, u_k, y_k, switch, Ts, Q, R, P0):
     # Initial state
     x = np.reshape(x0, (-1, 1))
     x_all = x
@@ -56,15 +56,7 @@ def sim_kf(x0, data, Q, R, P0):
     # C output matrix
     C = np.array([[0, 0, 0, 1]])
 
-    # get U: a_z w_y
-    u_k = np.append(data[:, 13].reshape(1, -1), data[:, 2].reshape(1, -1), axis=0)  # a_z, w_y, with nan, shape: (2, n)
-
-    # switch, to determine prediction or correction in KF, if False,then correction
-    switch = np.isnan(data[:, -1])
-
-    Ts = np.diff(data[:, 0])
-
-    u = u_k[:, 0]
+    u = np.array([[0.], [0.]])  # initialize the input
     for i in range(u_k.shape[1] - 1):  # the last U is useless
 
         if switch[i] == True:  # # prediction step
@@ -77,7 +69,7 @@ def sim_kf(x0, data, Q, R, P0):
 
             # # correction step
             # get velocity measurement
-            y = - data[i, 30].reshape(1, 1) / 1000  # unit of data is mm/s and data is inverse
+            y = y_k[i].reshape(1, 1)
 
             K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
             x = x + K @ (y - C @ x)

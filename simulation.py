@@ -70,15 +70,20 @@ def simulation_kf():
 
     # drop the rows where both imu and 'velocity' are NaN
     df_imu_vel = df[df.iloc[:, 29].notna() | df.iloc[:, 30].notna()].reset_index(drop=True)
-
     data = df_imu_vel.to_numpy()
+
+    # needed data for simulation
+    u_k = np.append(data[:, 13].reshape(1, -1), data[:, 2].reshape(1, -1), axis=0)  # a_z, w_y, with nan, shape: (2, n)
+    y_k = - data[:, 30] / 1000  # unit of data is mm/s and data is inverse
+    switch = np.isnan(data[:, -1]) # switch, to determine prediction or correction in KF, if False,then correction
+    Ts = np.diff(data[:, 0])
 
     x0 = [2.668, -3.346, 0, 0]
     Q = np.diag([1, 1, 1, 1])
     R = np.array([[0.1]])
     P0 = np.diag([10, 10, 10, 10])
 
-    x_all = sim_kf(x0, data, Q, R, P0)
+    x_all = sim_kf(x0, u_k, y_k, switch, Ts, Q, R, P0)
     print("shape of result", x_all.shape)
 
     # ============================================ Plot =============================================
@@ -117,13 +122,30 @@ def simulation_kf_all_data():
         drop=True)  # drop the rows of voltage
     data = df.to_numpy()
 
+    # calculate the yaw angle of tf
+    wxyz = data[:, 32:36]  # wxyz = [w, x, y, z]
+    print(wxyz.shape[0])
+    yaw_z = np.zeros((1, wxyz.shape[0]))    # shape: (1, n)
+    for i in range(wxyz.shape[0]):
+        _, _, yaw_z[0][i] = euler_from_quaternion(wxyz[i][1], wxyz[i][2], wxyz[i][3], wxyz[i][0])
+
+    u_k = np.append(data[:, 13].reshape(1, -1), data[:, 2].reshape(1, -1), axis=0)  # a_z, w_y, with nan, shape: (2, n)
+    y_k_vel = - data[:, 30] / 1000  # unit of data is mm/s and data is inverse
+    y_k_tf = np.concatenate((data[:, 36].reshape(1, -1), data[:, 37].reshape(1, -1), yaw_z), axis=0)  # [x, y, yaw_angle].T , shape: (3, n)
+    Ts = np.diff(data[:, 0])    # get time steps
+    # Switch, if the data are NaN, True. To determine prediction or correction in KF
+    s_imu = np.isnan(data[:, 29])
+    s_vel = np.isnan(data[:, 30])
+    s_tf = np.isnan(data[:, 31])
+
+    # Initial
     x0 = [2.669, -3.347, 0, 0]
     Q = np.diag([1, 1, 1, 1])
     R_v = np.array([[0.1]])
-    R_t = np.diag([1, 1, 1])
+    R_t = np.diag([0.1, 0.1, 0.1])
     P0 = np.diag([10, 10, 10, 10])
 
-    x_all = sim_all(x0, data, Q, R_v, R_t, P0)
+    x_all = sim_all(x0, u_k, Ts, y_k_vel, y_k_tf, s_imu, s_vel, s_tf, Q, R_v, R_t, P0)
     print(x_all.shape)
 
     # ============================================ Plot =============================================
@@ -132,13 +154,13 @@ def simulation_kf_all_data():
     # simulation curve
     p = plot_config(width=600, height=600, title='curve', x_label='x [ unknown ]', y_label='y [ unknown ]')
     p.circle(x_all[0][0], x_all[1][0], fill_color="red", legend_label='start_imu', size=2)
-    p.circle(x=x_all[0], y=x_all[1], legend_label='curve', line_width=1, line_color='blue')
-    p.asterisk(x_all[0][-1], x_all[1][-1], line_color="black", legend_label='end_imu', size=10)
+    p.circle(x=x_all[0][0:3000], y=x_all[1][0:3000], legend_label='curve', line_width=1, line_color='blue')
+    p.asterisk(x_all[0][-1], x_all[1][-1], line_color="black", legend_label='end_imu', size=20)
 
     # tf curve
     p.circle(tf['x'][0][0], tf['y'][0][0], fill_color="red", legend_label='start_tf', size=10)
     p.circle(x=tf['x'][0], y=tf['y'][0], legend_label='curve', line_width=1, line_color='black')
-    p.asterisk(tf['x'][0][-1], tf['y'][0][-1], line_color="green", legend_label='end_tf', size=10)
+    p.asterisk(tf['x'][0][-1], tf['y'][0][-1], line_color="green", legend_label='end_tf', size=20)
     p_total.append(p)
 
     # simulation states
@@ -154,5 +176,5 @@ def simulation_kf_all_data():
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    simulation_kf()
-    # simulation_kf_all_data()
+    # simulation_kf()
+    simulation_kf_all_data()
