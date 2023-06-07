@@ -43,7 +43,7 @@ def simulation():
     # simulation curve
     p = plot_config(width=600, height=600, title='imu curve', x_label='x [ unknown ]', y_label='y [ unknown ]')
     p.circle(x_all[0][0], x_all[1][0], fill_color="red", legend_label='start', size=10)
-    p.line(x=x_all[0], y=x_all[1], legend_label='curve', line_width=1, line_color='b')
+    p.line(x=x_all[0], y=x_all[1], legend_label='curve', line_width=1, line_color='blue')
     p.asterisk(x_all[0][-1], x_all[1][-1], line_color="green", legend_label='end', size=10)
 
     p.circle(tf['x'][0][0], tf['y'][0][0], fill_color="red", legend_label='start', size=10)
@@ -64,7 +64,7 @@ def simulation():
 
 def simulation_kf():
     # ==========================================Simulation================================================
-    df_raw = pd.read_csv(r'./data/data_2023_03_01-16_48_29.csv')
+    df_raw = pd.read_csv(r'data/data_2023_03_01-16_48_29/data_2023_03_01-16_48_29.csv')
 
     df = df_raw.iloc[:, 0:31]  # take the data from imu and 'velocity', include global time stamp
 
@@ -114,7 +114,7 @@ def simulation_kf():
 
 def simulation_kf_all_data():
     # ==========================================Simulation================================================
-    df_raw = pd.read_csv(r'.\data\data_2023_03_01-16_48_29.csv')
+    df_raw = pd.read_csv(r'data/data_2023_03_01-16_48_29/data_2023_03_01-16_48_29.csv')
 
     # take the data from imu, velocity and tf, including global time stamp
     df = df_raw.iloc[:, [i for i in range(31)] + [t for t in range(32, 40)]]
