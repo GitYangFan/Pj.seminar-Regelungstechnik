@@ -32,12 +32,12 @@ class MheHamster:
                      'tf.x':            [np.nan],
                      'tf.y':            [np.nan],
                      'tf.yaw_z':        [np.nan],
-                     'U.a_z':           [0.],
-                     'U.w_y':           [0.],
-                     'x':               [0.],
-                     'y':               [0.],
-                     'theta':           [0.],
-                     'v':               [0.]}
+                     'U.a_z':           [0],
+                     'U.w_y':           [0],
+                     'x':               [0],
+                     'y':               [0],
+                     'theta':           [0],
+                     'v':               [0]}
         self.df_all = pd.DataFrame(dict_init)
         self.last_u = np.array([[0.], [0.]])
 
@@ -55,12 +55,14 @@ class MheHamster:
         self.sym_arrival_cost = 0           # ||x_0 - x^_0||_P
         self.object_function = 0
 
+        # # Symbolic Functions
         self.f = None                       # only used for symbolic calculation, if input numeric, output ca.DM
         self.f_plus_w = None                # only used for symbolic calculation, if input numeric, output ca.DM
         self.setup_integral_function()      # set up self.f and self.f_plus_w
 
     def init_problem(self, solver: str = "ipopt",):
-        nlp =
+        # TODO: init options of NLP
+        nlp ={}
         opts = {}
         nlp_solver = ca.nlpsol("solver", solver, nlp, opts)
 
@@ -83,7 +85,7 @@ class MheHamster:
                          'y':               [x_curr[1][0]],
                          'theta':           [x_curr[2][0]],
                          'v':               [x_curr[3][0]]}
-            self.update_df_by_dict(dict_data)   # update data
+            self.update_df_by_dict(dict_data)   # update imu and integrated states
 
         elif data_typ == 'vel':
             dict_data = {'time':            [t_stamp],
@@ -119,26 +121,27 @@ class MheHamster:
         df_mea = self.df_all[self.df_all['sensor.type'] != 'imu']           # drop all imu data
 
         # df within horizon drops all rows of imu data, (all tf or vel)
-        df_mea_horizon = df_mea.iloc[-(self.horizon+1):, :]                 # df y in a horizon (len = N + 1)
-        id_list_mea = df_mea_horizon.index.to_list()                        # id list of y for MHE (len = N + 1)
+        df_mea_horizon = df_mea.iloc[-self.horizon:, :]                     # df y in a horizon (len = N)
+        id_list_mea = df_mea_horizon.index.to_list()                        # id list of y for MHE (len = N)
 
         # df within horizon includes all data, (first and last row can't be imu, see class method 'update_data()' )
-        df_all_horizon = self.df_all.loc[id_list_mea[0]:]                   # all data with the horizon (len >= N + 1)
-        id_list_all = df_all_horizon.index.to_list()                        # id list of all data for MHE (len >= N + 1)
+        df_all_horizon = self.df_all.loc[id_list_mea[0]:]                   # all data with the horizon (len M >= N)
+        id_list_all = df_all_horizon.index.to_list()                        # id list of all data for MHE (len M >= N)
 
-        f_horizon = len(id_list_all)                                        # fake horizon, for integral of symbolic
-        self.r_horizon = len(id_list_mea) - 1                               # real horizon, N
+        f_horizon = len(id_list_all)                                        # fake horizon, M, for integral of symbolic
+        self.r_horizon = len(id_list_mea)                                   # real horizon, N
 
         # param_y = df_mea_horizon[['tf.x','tf.y','tf.yaw_z']].to_numpy().T   # param for MHE shape: ()
-        param_u = df_all_horizon[['U.a_z', 'U.w_y']].to_numpy().T           # param for MHE shape: (2,xx)
-        param_t = df_all_horizon['time'].to_numpy()                         # param for MHE shape: (xx,)
-        ts_horizon = np.diff(param_t)                                       # Ts for integral, len = f_horizon - 1
+        # param_u for MHE, shape: (2,M-1), last u is no used, anyway just a copy, refer to class method update_data()
+        param_u = df_all_horizon[['U.a_z', 'U.w_y']].iloc[:-1].to_numpy().T
+        param_t = df_all_horizon['time'].to_numpy()                             # param_t for MHE, shape: (M,)
+        ts_horizon = np.diff(param_t)                                           # Ts for integral, len = M - 1
 
         self.sym_w = ca.SX.sym('w', 4, self.r_horizon)      # w_0 ~ w_N-1, shape: (4, N)
-        # self.sym_u = ca.SX.sym('u', 2, f_horizon)           # u_0 ~ u_xx, shape: (2, xx)
+        # self.sym_u = ca.SX.sym('u', 2, f_horizon)           # u_0 ~ u_M-2, shape: (2, M-1)
         self.sym_x = ca.SX.sym('x', 2, self.r_horizon + 1)  # x_0 ~ x_N, shape: (4, N+1)
-        self.sym_x[:, 0] = self.sym_x0
-        sym_x_next = self.sym_x0
+        # self.sym_x[:, 0] = self.sym_x0
+
 
         # #  States noise part: SUM ||w||_Q
         sum_w_matrix = np.multiply(self.sym_w, self.q_matrix @ self.sym_w)  # np.multiply() element wise
@@ -146,21 +149,23 @@ class MheHamster:
 
         # # Measurement noise part: SUM ||y-Cx||_R
         # Calculate N+1 symbolic x
-        for (i, id_i) in enumerate(id_list_all[:-1]):       # loop xx-1 times
-            # if the next point has no measurement, no plus w, no recording sym_x
-            if df_all_horizon['sensor.type'].loc[id_i+1] == 'imu':
-                sym_x_next = self.f(sym_x_next, param_u[:, i], ts_horizon[i])
-
-            # if the next point has measurement, plus w, record sym_x
+        sym_x_next = self.sym_x0
+        for (i, id_i) in enumerate(id_list_all[:-1]):       # loop M-1 times
+            # If the current point is measurement, record sym_x and integrate to the next point using w in this point
+            if id_i in id_list_mea:
+                id_j = id_list_mea.index(id_i)          # find the same item in 'id_list_mea' and get its id
+                self.sym_x[:, id_j] = sym_x_next        # record sym_x, (the last one should be recorded after the loop)
+                sym_x_next = self.f_plus_w(sym_x_next, param_u[:, i], ts_horizon[i], self.sym_w[:, id_j])
+            # If the current point is imu, integrate to the next point using latest w
             else:
-                id_j = id_list_mea.index(id_i+1)
-                sym_x_next = self.f_plus_w(sym_x_next, param_u[:, i], ts_horizon[i], self.sym_w[:, id_j - 1])
-                self.sym_x[:, id_j] = sym_x_next
+                # id_j kept in the measurement point
+                sym_x_next = self.f_plus_w(sym_x_next, param_u[:, i], ts_horizon[i], self.sym_w[:, id_j])
+        self.sym_x[:, -1] = sym_x_next
 
-        self.sym_sum_vrv = 0
-        # Calculate N+1 symbolic ||y-Cx||_R iteratively
-        for (i, id_i) in enumerate(id_list_mea):            # loop N+1 times
-            sensor_typ = df_mea_horizon['sensor.type'].loc[id_i]
+        # Calculate N symbolic ||y-Cx||_R iteratively, start from x1, x0 is involved in arrival cost
+        self.sym_sum_vrv = 0                                            # reset
+        for (i, id_i) in enumerate(id_list_mea):                        # loop N times
+            sensor_typ = df_mea_horizon['sensor.type'].loc[id_i]        # only 'vel' or 'tf'
             if sensor_typ == 'vel':
                 y_k = df_mea_horizon['velocity'].loc[id_i]
                 c_matrix = self.c_vel
@@ -171,11 +176,12 @@ class MheHamster:
                 r_matrix = self.r_tf
             else:
                 raise RuntimeError("Something goes wrong by manipulating data!")
-            v_k = y_k - c_matrix @ self.sym_x[:, i]
+            v_k = y_k - c_matrix @ self.sym_x[:, i + 1]                 # remind again, start from x1
             self.sym_sum_vrv += v_k.T @ r_matrix @ v_k
 
-        # # Arrival cost part" ||x_0 - x^_0||_P
-        delta_x0 = self.sym_x0 - df_mea_horizon[['x', 'y', 'theta', 'v']].iloc[0].to_numpy().reshape(4,1)
+        # # Arrival cost part: ||x_0 - x^_0||_P
+        id_x0 = id_list_mea[0] - 1
+        delta_x0 = self.sym_x0 - self.df_all[['x', 'y', 'theta', 'v']].iloc[id_x0].to_numpy().reshape(4, 1)
         self.sym_arrival_cost = delta_x0.T @ self.p_matrix @ delta_x0
 
         # # Objective function
