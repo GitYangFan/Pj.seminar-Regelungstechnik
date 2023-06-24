@@ -116,11 +116,11 @@ def sim_all(x0, u_k, Ts, y_k_vel, y_k_tf, s_imu, s_vel, s_tf, Q, R_v, R_t, P0):
 
             K = P @ C_t.T @ np.linalg.inv(C_t @ P @ C_t.T + R_t)
 
-            # -pi < the difference of theta < pi
+            # -pi < the difference of theta <= pi
             y_delta = y - C_t @ x
             if y_delta[2][0] > np.pi:
                 y_delta[2][0] -= 2 * np.pi
-            elif y_delta[2][0] < -np.pi:
+            elif y_delta[2][0] <= -np.pi:
                 y_delta[2][0] += 2 * np.pi
 
             x = x + K @ (y_delta)
