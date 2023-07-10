@@ -46,11 +46,14 @@ def f_k_all(x, u, Ts, P, Q):  # RK-4 integral
     x_next = x + 1 / 6 * Ts * (k1 + 2 * k2 + 2 * k3 + k4)
     P_next = P + 1 / 6 * Ts * (kp1 + 2 * kp2 + 2 * kp3 + kp4)
 
-    # 0 <= theta < 2*pi
-    if x_next[2][0] < 0:
-        x_next[2][0] += 2*np.pi
-    elif x_next[2][0] >= 2*np.pi:
-        x_next[2][0] -= 2*np.pi
+    # # 0 <= theta < 2*pi
+    # if x_next[2][0] < 0:
+    #     x_next[2][0] += 2*np.pi
+    # elif x_next[2][0] >= 2*np.pi:
+    #     x_next[2][0] -= 2*np.pi
+
+    # -pi <= theta < pi
+    x_next[2][0] = (x_next[2][0] + np.pi) % (2 * np.pi) - np.pi
 
     return x_next, P_next
 
@@ -74,7 +77,10 @@ def sim_all(x0, u_k, Ts, y_k_vel, y_k_tf, s_imu, s_vel, s_tf, Q, R_v, R_t, P0):
     """
 
     x = np.reshape(x0, (-1, 1))                 # Initial state
+    x_nan = np.array([np.nan]*4).reshape(4,1)
+
     x_all = x                                   # Record the state for returning result
+    x_correct_tf = x_nan
     P = P0                                      # Initial P matrix
 
     C_v = np.array([[0, 0, 0, 1]])              # C_v output matrix for velocity data
@@ -92,6 +98,8 @@ def sim_all(x0, u_k, Ts, y_k_vel, y_k_tf, s_imu, s_vel, s_tf, Q, R_v, R_t, P0):
             u = u_k[:, i]                       # update input when imu data exist
             x, P = f_k_all(x, u, Ts[i], P, Q)
 
+            x_correct_tf = np.append(x_correct_tf, x_nan, axis=1)
+
         # # correction with velocity data
         elif not s_vel[i]:
             x, P = f_k_all(x, u, Ts[i], P, Q)   # Prediction step using last u
@@ -103,7 +111,9 @@ def sim_all(x0, u_k, Ts, y_k_vel, y_k_tf, s_imu, s_vel, s_tf, Q, R_v, R_t, P0):
             x = x + K @ (y - C_v @ x)
             P = (np.eye(4) - K @ C_v) @ P
 
-        # # correction with tf data
+            x_correct_tf = np.append(x_correct_tf, x_nan, axis=1)
+
+        # # correction with tf dataself.df[['U.a_z', 'U.w_y']].iloc[id_last + i].to_numpy().reshape(2, 1)
         elif not s_tf[i]:
             x, P = f_k_all(x, u, Ts[i], P, Q)   # Prediction step using last u
 
@@ -123,9 +133,11 @@ def sim_all(x0, u_k, Ts, y_k_vel, y_k_tf, s_imu, s_vel, s_tf, Q, R_v, R_t, P0):
             elif y_delta[2][0] <= -np.pi:
                 y_delta[2][0] += 2 * np.pi
 
-            x = x + K @ (y_delta)
+            x = x + K @ y_delta
             P = (np.eye(4) - K @ C_t) @ P
+
+            x_correct_tf = np.append(x_correct_tf, x, axis=1)
 
         x_all = np.append(x_all, x, axis=1)
 
-    return x_all
+    return x_all, x_correct_tf
