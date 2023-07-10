@@ -169,9 +169,9 @@ class KFRealTime:
 
     def update_df_by_dict(self, dict_data):
         df_all_curr = pd.DataFrame(dict_data)
-        self.df.sort_index(inplace=True, kind='stable')
+        self.df.sort_index(inplace=True, kind='stable') # sort according to received order
         self.df = pd.concat((self.df, df_all_curr), axis=0, ignore_index=True)  # append the new row to 2 df
-        self.df.sort_values(by=['time'], inplace=True, kind='stable')   # sort the order of 2 df according to ascending time
+        self.df.sort_values(by=['time'], inplace=True, kind='stable')   # sort according to ascending time stamp
 
     def update_states(self):
         df_time = self.df.iloc[:, 0]            # self.df['time']
