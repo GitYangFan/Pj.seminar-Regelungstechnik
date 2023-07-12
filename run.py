@@ -2,7 +2,8 @@ import os
 import casadi as ca
 from MheSingleShooting import MheSingleShooting
 from MheMultipleShooting import MheMultipleShooting
-from KFRealTime import KFRealTime
+# from KFRealTime import KFRealTime
+from KFRealTime2 import KFRealTime
 
 # load data files
 # PLEASE MODIFY THE PATH OF DATA!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -19,9 +20,9 @@ exec(open("data_process_from_rosbags.py").read())
 # ===========================================================================================
 
 # correct imu data using a rotation matrix
-# o_R_e = np.genfromtxt("o_R_e.csv", delimiter=",")
-# df_imu[["imu.a_x", "imu.a_y", "imu.a_z"]] = df_imu[["imu.a_x", "imu.a_y", "imu.a_z"]] @ o_R_e.T
-# df_imu[["imu.w_x", "imu.w_y", "imu.w_z"]] = df_imu[["imu.w_x", "imu.w_y", "imu.w_z"]] @ o_R_e.T
+o_R_e = np.genfromtxt("o_R_e.csv", delimiter=",")
+df_imu[["imu.a_x", "imu.a_y", "imu.a_z"]] = df_imu[["imu.a_x", "imu.a_y", "imu.a_z"]] @ o_R_e.T
+df_imu[["imu.w_x", "imu.w_y", "imu.w_z"]] = df_imu[["imu.w_x", "imu.w_y", "imu.w_z"]] @ o_R_e.T
 # df_imu[["imu.w_x", "imu.w_y", "imu.w_z"]] = df_imu[["imu.w_x", "imu.w_y", "imu.w_z"]] * 1.1
 
 
@@ -73,7 +74,7 @@ for i in range(len(data)):
     print("Iteration:", i+1, '/', len(data))
     sim(t_stamp, data_typ, value)
     # if i == 4600:
-    #     sim.df.to_csv(r'sim_KF_halfway.csv')
+    #     sim.df.to_csv(r'sim_KF2_halfway.csv')
     #     print("saved")
 
 # file_name = 'sim_mhe_multiple_correctedimu'
@@ -81,7 +82,7 @@ for i in range(len(data)):
 # file_name = 'sim_mhe_multiple_tan'
 # file_name = 'sim_mhe_multiple_sin'
 # file_name = 'sim_mhe_multiple_mod'
-file_name = 'sim_KF'
+file_name = 'sim_KF2'
 
 sim.df.to_csv(file_name + r'.csv')
 

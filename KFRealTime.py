@@ -187,12 +187,12 @@ class KFRealTime:
         id_0 = id_last - 1  # -1~inf            # sim start from id_last-1, whose state is initial state of this loop
         id_u0 = id_0                            # id of U start from id_last - 1 , cuz the last u is useless
 
-        # such newest u
+        # such id of recent u of newest data until id_u0 = -1, if there is no imu data
         while id_u0 != -1:
             if df_sensor_typ.iloc[id_u0] == 'imu':
                 break
             id_u0 -= 1
-
+        # get u0
         if id_u0 != -1:                                             # There are imu data before
             u = df_u.iloc[id_u0].to_numpy().reshape(2,1)
         else:                                                       # There is no imu data yet, use initial u0

@@ -7,8 +7,8 @@ import time
 def nlinear_diff_yaw_angle(x):
     # select one of the following syntax
     # x[2] = ca.tan(0.5 * x[2])
-    # x[2] = 2 - ca.cos(x[2])
-    x[2] = ca.fmod(x[2] + np.pi, 2*np.pi) - np.pi
+    x[2] = 2 - ca.cos(x[2])
+    # x[2] = ca.fmod(x[2] + np.pi, 2*np.pi) - np.pi
     # x[2] = 2*ca.sin(x[2]/2)
     return x
 
