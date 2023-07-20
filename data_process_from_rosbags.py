@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 """
-
+# Template:
 data_subfold = "rosbag2_2023_06_16-16_50_38"
 merge_command = False
 save_merged_data = False        # optional

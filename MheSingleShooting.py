@@ -5,12 +5,17 @@ import time
 
 
 def constrain_yaw_angle(x):
+    """
+
+    :param x: shape: (4, n)
+    :return:
+    """
     # # 0 <= theta < 2*pi
-    # x[2][0] = x[2][0] % (2 * np.pi)
+    # x[2,:] = np.fmod(x[2,:], 2 * np.pi)
 
     # or
     # -pi <= theta < pi
-    x[2][0] = (x[2][0] + np.pi) % (2 * np.pi) - np.pi
+    x[2,:] = np.fmod(x[2,:] + np.pi, 2 * np.pi) - np.pi
     return x
 
 
@@ -252,7 +257,7 @@ class MheSingleShooting:
         # # Measurement noise part: SUM ||y-Cx||_R
         # Calculate N+1 symbolic x
         sym_x_next = self.sym_x0
-        for (i, id_i) in enumerate(id_list_all[:-1]):       # loop M-1 times
+        for (i, id_i) in enumerate(id_list_all[:-1]):       # loop M times
             # If the current point is measurement, record sym_xx and integrate to the next point using w in this point
             if id_i in self.id_list_mea:
                 id_j = self.id_list_mea.index(id_i)         # find the same item in 'id_list_mea' and get its id
@@ -272,13 +277,13 @@ class MheSingleShooting:
                 y_k = df_mea_horizon['velocity'].loc[id_i]
                 c_matrix = self.c_vel
                 r_matrix = self.r_vel
-                v_k = y_k - c_matrix @ self.sym_xx[:, i]  # start from x1
+                v_k = y_k - c_matrix @ self.sym_xx[:, i]
             elif sensor_typ == 'tf':
                 y_k = df_mea_horizon[['tf.x', 'tf.y', 'tf.yaw_z']].loc[id_i].to_numpy().reshape(3, 1)
                 c_matrix = self.c_tf
                 r_matrix = self.r_tf
                 # the squared difference of yaw angle should be a function with period 2pi
-                v_k = self.y_cx_tf(self.sym_xx[:, i], y_k)  # start from x1
+                v_k = self.y_cx_tf(self.sym_xx[:, i], y_k)
                 # v_k = y_k - c_matrix @ self.sym_xx[:, i]
             else:
                 raise RuntimeError("Something goes wrong by manipulating data!")
