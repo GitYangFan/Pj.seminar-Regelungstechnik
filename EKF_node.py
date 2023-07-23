@@ -90,7 +90,7 @@ def main(args=None):
     rclpy.init(args=args)
     EKF_publisher = EKF_node()
     rclpy.spin(EKF_publisher)
-    # EKF_publisher.destroy_node()
+    EKF_publisher.destroy_node()
     rclpy.shutdown()
 
 

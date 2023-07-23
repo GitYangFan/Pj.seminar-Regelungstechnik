@@ -1,0 +1,18 @@
+# play back ros bag
+source /opt/ros/humble/setup.bash
+ros2 bag play Hamster/rosbag/rosbag2_2023_03_01-16_48_29_0.db3
+
+# run a python script
+source /opt/ros/humble/setup.bash
+cd Hamster/scripts
+python3 <filename>
+
+# ros2 topic info
+source /opt/ros/humble/setup.bash
+ros2 topic list
+ros2 topic echo /hamster2/imu
+ros2 interface list     # message types
+
+1689925619
+
+1689925946
