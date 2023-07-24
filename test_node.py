@@ -6,6 +6,7 @@ from sensor_msgs.msg import Imu
 from tf2_msgs.msg import TFMessage
 from std_msgs.msg import Float32
 from std_msgs.msg import Float64MultiArray
+from rosgraph_msgs.msg import Clock
 from KFRealTime import KFRealTime
 import pandas as pd
 
@@ -13,6 +14,7 @@ from euler_from_quaternion import euler_from_quaternion
 
 # initialization of global data
 data = np.zeros((1, 7))  # [time_stamp, imu_a_z, imu_w_y, velocity, tf_x, tf_y, tf_yaw]
+clk = None   # initialize the global clock
 length = 10     # the length of data cache
 NaN = np.nan
 
@@ -25,7 +27,7 @@ P = np.diag([1, 1, 1, 1])         # initial covariance matrix for current state
 sim = KFRealTime(Q, R_vel, R_tf, P)
 sim.initialization()
 
-
+"""
 class ImuSubscriber(Node):
 
     def __init__(self):
@@ -95,7 +97,7 @@ class EKF_Subscriber(Node):
 
     def tf_callback(self, msg):
         self.get_logger().info('tf info: "%s"' % msg.transforms[0].transform.translation.x)
-
+"""
 
 class EKF_node(Node):
 
@@ -116,13 +118,19 @@ class EKF_node(Node):
             '/hamster2/velocity',
             self.vel_callback,
             1)
-        self.publisher_ = self.create_publisher(Float64MultiArray, 'EKF', 10)
-        timer_period = 0.01  # seconds
+        self.clock_subscription = self.create_subscription(
+            Clock,
+            '/clock',
+            self.clock_callback,
+            1)
+        self.publisher_ = self.create_publisher(Float64MultiArray, 'EKF', 1)
+        timer_period = 0.001  # seconds
         self.timer = self.create_timer(timer_period, self.ekf_callback)
         self.i = 0
         self.imu_subscription  # prevent unused variable warning
         self.tf_subscription
         self.vel_subscription
+        self.clock_subscription
 
     def imu_callback(self, msg):
         global data
@@ -154,8 +162,8 @@ class EKF_node(Node):
         global data
         vel = msg.data
         stamp = self.get_clock().now().to_msg().sec
-        print('---------------------------------------------')
-        print('stamp: ', stamp)
+        # print('---------------------------------------------')
+        # print('stamp: ', stamp)
         vel_data = np.array([NaN, NaN, NaN, vel, NaN, NaN, NaN])
 
         # data = np.concatenate((data, vel_data[np.newaxis, :]), axis=0)
@@ -163,6 +171,13 @@ class EKF_node(Node):
             data = np.delete(data, 0, axis=0)
             # print('---------------------------------------------')
             # print('data:', data)
+
+    def clock_callback(self, msg):    # no time stamp ??
+        global clk
+        clk = msg
+        print('---------------------------------------------')
+        print('clk: ', clk)
+
 
     def ekf_callback(self):
         global data
@@ -198,7 +213,7 @@ class EKF_node(Node):
             sim(t_stamp, data_typ, value)
 
             # msg.data = [0.1, 0.2 + self.i]
-            print('---------------------------------------------')
+            # print('---------------------------------------------')
             # result = sim.df.iloc[-1, 9:11].values.tolist()
             # print('ekf results:', result)
             # msg.data = result
@@ -209,9 +224,15 @@ class EKF_node(Node):
             #     msg.data = sim.dataset['time'][-1]
 
             if len(sim.dataset['X_rt']) != 0:
-                print('X_rt: ', sim.dataset['X_rt'][-1])
-            #     msg.data = sim.dataset['X_rt'][0]
-            # self.publisher_.publish(msg)
+                # print('X_rt: ', [sim.dataset['X_rt'][-1][0][0], sim.dataset['X_rt'][-1][1][0],sim.dataset['X_rt'][-1][2][0],sim.dataset['X_rt'][-1][3][0]])
+                # print(sim.dataset['X_rt'][-1])
+                if abs(sim.dataset['X_rt'][-1][0][0])>5 or abs(sim.dataset['X_rt'][-1][1][0])>5:
+                    # print('---------------------------------------------')
+                    print ("WARNING!!!!!!!!")
+                    # print("x: ", sim.dataset['X_rt'][-1][0][0])
+                    # print("y: ", sim.dataset['X_rt'][-1][1][0])
+                msg.data = [sim.dataset['X_rt'][-1][0][0], sim.dataset['X_rt'][-1][1][0],sim.dataset['X_rt'][-1][2][0],sim.dataset['X_rt'][-1][3][0]] #sim.dataset['X_rt'][0]
+            self.publisher_.publish(msg)
             # self.get_logger().info('Publishing ekf results: "%s"' % msg.data)
             self.i += 1
 
