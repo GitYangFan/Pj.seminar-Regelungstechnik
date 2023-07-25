@@ -118,11 +118,11 @@ class EKF_node(Node):
             '/hamster2/velocity',
             self.vel_callback,
             1)
-        self.clock_subscription = self.create_subscription(
-            Clock,
-            '/clock',
-            self.clock_callback,
-            1)
+        # self.clock_subscription = self.create_subscription(
+        #     Clock,
+        #     '/clock',
+        #     self.clock_callback,
+        #     1)
         self.publisher_ = self.create_publisher(Float64MultiArray, 'EKF', 1)
         timer_period = 0.001  # seconds
         self.timer = self.create_timer(timer_period, self.ekf_callback)
@@ -130,7 +130,7 @@ class EKF_node(Node):
         self.imu_subscription  # prevent unused variable warning
         self.tf_subscription
         self.vel_subscription
-        self.clock_subscription
+        # self.clock_subscription
 
     def imu_callback(self, msg):
         global data
@@ -160,23 +160,24 @@ class EKF_node(Node):
 
     def vel_callback(self, msg):    # no time stamp ??
         global data
-        vel = msg.data
-        stamp = self.get_clock().now().to_msg().sec
+        vel = msg.velocity
+        stamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
         # print('---------------------------------------------')
-        # print('stamp: ', stamp)
-        vel_data = np.array([NaN, NaN, NaN, vel, NaN, NaN, NaN])
+        # print('vel: ', vel)
+        vel_data = np.array([stamp, NaN, NaN, vel, NaN, NaN, NaN])
 
-        # data = np.concatenate((data, vel_data[np.newaxis, :]), axis=0)
+        data = np.concatenate((data, vel_data[np.newaxis, :]), axis=0)
         if data.shape[0] > length:
             data = np.delete(data, 0, axis=0)
             # print('---------------------------------------------')
             # print('data:', data)
 
-    def clock_callback(self, msg):    # no time stamp ??
-        global clk
-        clk = msg
-        print('---------------------------------------------')
-        print('clk: ', clk)
+    # def clock_callback(self, msg):
+    #     global clk
+    #     print('clock msg:', msg)
+    #     # clk = msg
+    #     print('---------------------------------------------')
+    #     print('clk: ', clk)
 
 
     def ekf_callback(self):
@@ -227,10 +228,10 @@ class EKF_node(Node):
                 # print('X_rt: ', [sim.dataset['X_rt'][-1][0][0], sim.dataset['X_rt'][-1][1][0],sim.dataset['X_rt'][-1][2][0],sim.dataset['X_rt'][-1][3][0]])
                 # print(sim.dataset['X_rt'][-1])
                 if abs(sim.dataset['X_rt'][-1][0][0])>5 or abs(sim.dataset['X_rt'][-1][1][0])>5:
-                    # print('---------------------------------------------')
+                    print('---------------------------------------------')
                     print ("WARNING!!!!!!!!")
-                    # print("x: ", sim.dataset['X_rt'][-1][0][0])
-                    # print("y: ", sim.dataset['X_rt'][-1][1][0])
+                    print("x: ", sim.dataset['X_rt'][-1][0][0])
+                    print("y: ", sim.dataset['X_rt'][-1][1][0])
                 msg.data = [sim.dataset['X_rt'][-1][0][0], sim.dataset['X_rt'][-1][1][0],sim.dataset['X_rt'][-1][2][0],sim.dataset['X_rt'][-1][3][0]] #sim.dataset['X_rt'][0]
             self.publisher_.publish(msg)
             # self.get_logger().info('Publishing ekf results: "%s"' % msg.data)
