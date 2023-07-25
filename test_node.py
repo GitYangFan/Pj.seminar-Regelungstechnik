@@ -7,6 +7,7 @@ from tf2_msgs.msg import TFMessage
 from std_msgs.msg import Float32
 from std_msgs.msg import Float64MultiArray
 from rosgraph_msgs.msg import Clock
+from hamster_interfaces.msg import VelocityWithHeader
 from KFRealTime import KFRealTime
 import pandas as pd
 
@@ -114,7 +115,7 @@ class EKF_node(Node):
             self.tf_callback,
             1)
         self.vel_subscription = self.create_subscription(
-            Float32,
+            VelocityWithHeader,
             '/hamster2/velocity',
             self.vel_callback,
             1)
@@ -162,8 +163,10 @@ class EKF_node(Node):
         global data
         vel = msg.velocity
         stamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
-        # print('---------------------------------------------')
-        # print('vel: ', vel)
+        print('---------------------------------------------')
+        print('vel: ', vel)
+        print('---------------------------------------------')
+        print('stamp: ', stamp)
         vel_data = np.array([stamp, NaN, NaN, vel, NaN, NaN, NaN])
 
         data = np.concatenate((data, vel_data[np.newaxis, :]), axis=0)
