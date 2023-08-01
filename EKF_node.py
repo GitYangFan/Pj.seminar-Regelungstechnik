@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.clock import Clock
 import numpy as np
 from std_msgs.msg import String
 from sensor_msgs.msg import Imu
@@ -9,7 +10,6 @@ from std_msgs.msg import Float64MultiArray
 from rosgraph_msgs.msg import Clock
 from hamster_interfaces.msg import VelocityWithHeader
 from KFRealTime import KFRealTime
-import rospy
 
 
 from euler_from_quaternion import euler_from_quaternion
@@ -19,7 +19,7 @@ data = np.zeros((1, 7))  # [time_stamp, imu_a_z, imu_w_y, velocity, tf_x, tf_y, 
 # initialization of previous ekf results
 ekf_pre = np.zeros((1, 5))  # [time_stamp, position_x, position_y, yaw_angle, velocity]
 # clk = None  # initialize the global clock
-length = 10  # the length of data cache
+length = 20  # the length of data cache
 NaN = np.nan
 
 # initialization of EKF
@@ -159,8 +159,10 @@ class EKF_node(Node):
             # print('length: ', len(sim.dataset['time']))
             # if len(sim.dataset['time']) != 0:
             #     msg.data = sim.dataset['time'][-1]
-            current_time = rospy.Time.now()
-            clk = current_time.secs + 1e-9 * current_time.nsecs
+            current_time = self.get_clock().now()
+            clk = 1e-9 * current_time.nanoseconds
+            # print('current_time: ',clk)
+            # clk = current_time.secs + 1e-9 * current_time.nsecs
 
             if len(sim.dataset['X_rt']) != 0:
                 # print('X_rt: ', [sim.dataset['X_rt'][-1][0][0], sim.dataset['X_rt'][-1][1][0],sim.dataset['X_rt'][-1][2][0],sim.dataset['X_rt'][-1][3][0]])
@@ -173,17 +175,18 @@ class EKF_node(Node):
                 ekf_new = np.array(
                     [clk, sim.dataset['X_rt'][-1][0][0], sim.dataset['X_rt'][-1][1][0], sim.dataset['X_rt'][-1][2][0],
                      sim.dataset['X_rt'][-1][3][0]])  # sim.dataset['X_rt'][0]
-                ekf_pre = np.concatenate((ekf_pre, ekf_new), axis=0)
+                ekf_pre = np.vstack((ekf_pre, ekf_new))
                 ekf_interpolate = ekf_new  # initial value of ekf result at current time
+                coefficients = np.zeros((length, 2))
                 if ekf_pre.shape[0] > length:
                     ekf_pre = ekf_pre[1:]
-                    coefficients = np.zeros((1, 4))
+                    clk = ekf_new[0]
                     for i in range(4):
-                        coefficients[i] = np.polyfit(ekf_pre[:, 0], ekf_pre[:, i+1], 3)
-                        ekf_interpolate[i+1] = np.polyval(coefficients[i], clk)
+                        coefficients[i] = np.polyfit(ekf_pre[:, 0], ekf_pre[:, i + 1], 1)
+                        ekf_interpolate[i + 1] = np.polyval(coefficients[i], clk)
                 msg.data = ekf_interpolate.tolist()
             self.publisher_.publish(msg)
-            # self.get_logger().info('Publishing ekf results: "%s"' % msg.data)
+            self.get_logger().info('Publishing ekf results: "%s"' % msg.data)
             self.i += 1
 
 
