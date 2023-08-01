@@ -1,96 +1,200 @@
 import rclpy
 from rclpy.node import Node
-from simulation import *
+import numpy as np
+from std_msgs.msg import String
+from sensor_msgs.msg import Imu
+from tf2_msgs.msg import TFMessage
+from std_msgs.msg import Float32
+from std_msgs.msg import Float64MultiArray
+from rosgraph_msgs.msg import Clock
+from hamster_interfaces.msg import VelocityWithHeader
+from KFRealTime import KFRealTime
+import rospy
 
-from EKF.msg import EKF_estimate        # the message type of EKF
-from IMUInfo.msg import IMUInfo         # the message type of imu
-from geometry_msgs.msg import TransformStamped      # the message type of tf
 
+from euler_from_quaternion import euler_from_quaternion
 
-data = np.empty((0, 6), float)
+# initialization of global data
+data = np.zeros((1, 7))  # [time_stamp, imu_a_z, imu_w_y, velocity, tf_x, tf_y, tf_yaw]
+# initialization of previous ekf results
+ekf_pre = np.zeros((1, 5))  # [time_stamp, position_x, position_y, yaw_angle, velocity]
+# clk = None  # initialize the global clock
+length = 10  # the length of data cache
+NaN = np.nan
 
-def simulation_kf_realtime(data):
-    # ==========================================Simulation================================================
-    # calculate the yaw angle of tf
-    wxyz = data[:, 32:36]  # wxyz = [w, x, y, z]
-    print(wxyz.shape[0])
-    yaw_z = np.zeros((1, wxyz.shape[0]))  # shape: (1, n)
-    for i in range(wxyz.shape[0]):
-        _, _, yaw_z[0][i] = euler_from_quaternion(wxyz[i][1], wxyz[i][2], wxyz[i][3], wxyz[i][0])
+# initialization of EKF
+Q = np.diag([1, 1, 1, 1])  # covariance matrix for state noise
+R_vel = np.array([[0.1]])  # covariance matrix for velocity measurement noise
+R_tf = np.diag([0.1, 0.1, 0.1])  # covariance matrix for TF measurement noise
+P = np.diag([1, 1, 1, 1])  # initial covariance matrix for current state
 
-    u_k = np.append(data[:, 13].reshape(1, -1), data[:, 2].reshape(1, -1), axis=0)  # a_z, w_y, with nan, shape: (2, n)
-    y_k_vel = - data[:, 30] / 1000  # unit of data is mm/s and data is inverse
-    y_k_tf = np.concatenate((data[:, 36].reshape(1, -1), data[:, 37].reshape(1, -1), yaw_z),
-                            axis=0)  # [x, y, yaw_angle].T , shape: (3, n)
-    Ts = np.diff(data[:, 0])  # get time steps
-    # Switch, if the data are NaN, True. To determine prediction or correction in KF
-    s_imu = np.isnan(data[:, 29])
-    s_vel = np.isnan(data[:, 30])
-    s_tf = np.isnan(data[:, 31])
-
-    # Initial
-    x0 = [2.669, -3.347, 0, 0]
-    Q = np.diag([1, 1, 1, 1])
-    R_v = np.array([[0.1]])
-    R_t = np.diag([0.1, 0.1, 0.1])
-    P0 = np.diag([10, 10, 10, 10])
-
-    x_all = sim_all(x0, u_k, Ts, y_k_vel, y_k_tf, s_imu, s_vel, s_tf, Q, R_v, R_t, P0)
-    return x_all
+sim = KFRealTime(Q, R_vel, R_tf, P)
+sim.initialization()
 
 
 class EKF_node(Node):
 
     def __init__(self):
-        super().__init__('EKF_publisher')
-        self.publisher_ = self.create_publisher(EKF_estimate, 'estimationResults', 10)
-        self.imu_subscription_ = self.create_subscription(
-            IMUInfo,
+        super().__init__('EKF_node')
+        self.imu_subscription = self.create_subscription(
+            Imu,
             '/hamster2/imu',
             self.imu_callback,
-            10
-        )
-        self.tf_subscription_ = self.create_subscription(
-            TransformStamped,
-            'tf_topic',
+            1)
+        self.tf_subscription = self.create_subscription(
+            TFMessage,
+            '/tf',
             self.tf_callback,
-            10
-        )
-        self.imu_subscription_
-        self.tf_subscription_
-        # timer_period = 0.5  # seconds
-        # self.timer = self.create_timer(timer_period, self.ekf_callback)
-        self.get_logger().info('EKF node initialized')
+            1)
+        self.vel_subscription = self.create_subscription(
+            VelocityWithHeader,
+            '/hamster2/velocity',
+            self.vel_callback,
+            1)
+        # self.clock_subscription = self.create_subscription(
+        #     Clock,
+        #     '/clock',
+        #     self.clock_callback,
+        #     1)
+        self.publisher_ = self.create_publisher(Float64MultiArray, 'EKF', 1)
+        timer_period = 0.001  # seconds
+        self.timer = self.create_timer(timer_period, self.ekf_callback)
+        self.i = 0
+        self.imu_subscription  # prevent unused variable warning
+        self.tf_subscription
+        self.vel_subscription
+        # self.clock_subscription
 
-    def imu_callback(self, msg_imu):
+    def imu_callback(self, msg):
         global data
-        imu_data = np.array([msg_imu.linear_acceleration.x, msg_imu.linear_acceleration.y, msg_imu.linear_acceleration.z,
-                  msg_imu.angular_velocity.x, msg_imu.angular_velocity.y, msg_imu.angular_velocity.z])
-        data = np.vstack((data, imu_data))      # Stack the latest imu data after global variable data
-        result = simulation_kf_realtime(data)   # get the simulation results
-        ekf_msg = EKF_estimate()
-        ekf_msg.data = result[:, -1].tolist()    # only publish the simulation results for current position
-        self.publisher_.publish(ekf_msg)
-        self.get_logger().info('Published EKF result: "%s"' % ekf_msg.data)
+        # self.get_logger().info('imu info: "%s"' % msg.angular_velocity.x)
+        imu_data = np.array([(msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec), msg.linear_acceleration.z,
+                             msg.angular_velocity.y, NaN, NaN, NaN, NaN])
+        data = np.concatenate((data, imu_data[np.newaxis, :]), axis=0)
+        if data.shape[0] > length:
+            data = np.delete(data, 0, axis=0)
+            # print('---------------------------------------------')
+            # print('data:', data)
 
-    def tf_callback(self, msg_tf):
+    def tf_callback(self, msg):
         global data
-        tf_data = np.array(
-            [msg_tf.transform.translation.x, msg_tf.transform.translation.y, msg_tf.transform.translation.z,
-             msg_tf.transform.rotation.x, msg_tf.transform.rotation.y, msg_tf.transform.rotation.z])
-        data = np.vstack((data, tf_data))       # Stack the latest tf data after global variable data
-        result = simulation_kf_realtime(data)   # get the simulation results
-        ekf_msg = EKF_estimate()
-        ekf_msg.data = result[-1, :].tolist()
-        self.publisher_.publish(ekf_msg)
-        self.get_logger().info('Published KF results: %s' % ekf_msg.data)
+        # self.get_logger().info('tf info: "%s"' % msg.transforms[0].transform.translation.x)
+        xyzw = [msg.transforms[0].transform.rotation.x, msg.transforms[0].transform.rotation.y,
+                msg.transforms[0].transform.rotation.z, msg.transforms[0].transform.rotation.w]
+        _, _, yaw_z = euler_from_quaternion(xyzw[0], xyzw[1], xyzw[2], xyzw[3])
+        tf_data = np.array([(msg.transforms[0].header.stamp.sec + 1e-9 * msg.transforms[0].header.stamp.nanosec), NaN,
+                            NaN, NaN, msg.transforms[0].transform.translation.x,
+                            msg.transforms[0].transform.translation.y,
+                            yaw_z])
+        data = np.concatenate((data, tf_data[np.newaxis, :]), axis=0)
+        if data.shape[0] > length:
+            data = np.delete(data, 0, axis=0)
+            # print('---------------------------------------------')
+            # print('data:', data)
+
+    def vel_callback(self, msg):
+        global data
+        vel = msg.velocity
+        stamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
+        print('---------------------------------------------')
+        print('vel: ', vel)
+        print('---------------------------------------------')
+        print('stamp: ', stamp)
+        vel_data = np.array([stamp, NaN, NaN, vel, NaN, NaN, NaN])
+
+        data = np.concatenate((data, vel_data[np.newaxis, :]), axis=0)
+        if data.shape[0] > length:
+            data = np.delete(data, 0, axis=0)
+            # print('---------------------------------------------')
+            # print('data:', data)
+
+    # def clock_callback(self, msg):
+    #     global clk
+    #     print('clock msg:', msg)
+    #     # clk = msg
+    #     print('---------------------------------------------')
+    #     print('clk: ', clk)
+
+    def ekf_callback(self):
+        global data
+        global ekf_pre
+
+        msg = Float64MultiArray()
+
+        if data[-1, 0] != 0:
+            # the switch of data type
+            s_imu = np.isnan(data[-1, 1])
+            s_vel = np.isnan(data[-1, 3])
+            s_tf = np.isnan(data[-1, 4])
+
+            if not s_imu:
+                data_typ = 'imu'
+                t_stamp = data[-1, 0]  # header time stamp
+                value = data[-1, 1:3].reshape(2, 1)
+                # print('value:', value)
+            elif not s_vel:
+                data_typ = 'vel'
+                t_stamp = data[-1, 0]  # header time stamp
+                value = data[-1, 3].reshape(1, 1)
+                # print('value:', value)
+            elif not s_tf:
+                data_typ = 'tf'
+                t_stamp = data[-1, 0]  # header time stamp
+                value = data[-1, 4:7].reshape(3, 1)
+                # print('value:', value)
+            else:
+                data_typ = 'imu'
+                t_stamp = data[-2, 0]  # header time stamp
+                value = data[-2, 1:3].reshape(2, 1)
+
+            sim(t_stamp, data_typ, value)
+
+            # msg.data = [0.1, 0.2 + self.i]
+            # print('---------------------------------------------')
+            # result = sim.df.iloc[-1, 9:11].values.tolist()
+            # print('ekf results:', result)
+            # msg.data = result
+
+            # print(sim.dataset)
+            # print('length: ', len(sim.dataset['time']))
+            # if len(sim.dataset['time']) != 0:
+            #     msg.data = sim.dataset['time'][-1]
+            current_time = rospy.Time.now()
+            clk = current_time.secs + 1e-9 * current_time.nsecs
+
+            if len(sim.dataset['X_rt']) != 0:
+                # print('X_rt: ', [sim.dataset['X_rt'][-1][0][0], sim.dataset['X_rt'][-1][1][0],sim.dataset['X_rt'][-1][2][0],sim.dataset['X_rt'][-1][3][0]])
+                # print(sim.dataset['X_rt'][-1])
+                if abs(sim.dataset['X_rt'][-1][0][0]) > 5 or abs(sim.dataset['X_rt'][-1][1][0]) > 5:
+                    print('---------------------------------------------')
+                    print("WARNING!!!!!!!!")
+                    print("x: ", sim.dataset['X_rt'][-1][0][0])
+                    print("y: ", sim.dataset['X_rt'][-1][1][0])
+                ekf_new = np.array(
+                    [clk, sim.dataset['X_rt'][-1][0][0], sim.dataset['X_rt'][-1][1][0], sim.dataset['X_rt'][-1][2][0],
+                     sim.dataset['X_rt'][-1][3][0]])  # sim.dataset['X_rt'][0]
+                ekf_pre = np.concatenate((ekf_pre, ekf_new), axis=0)
+                ekf_interpolate = ekf_new  # initial value of ekf result at current time
+                if ekf_pre.shape[0] > length:
+                    ekf_pre = ekf_pre[1:]
+                    coefficients = np.zeros((1, 4))
+                    for i in range(4):
+                        coefficients[i] = np.polyfit(ekf_pre[:, 0], ekf_pre[:, i+1], 3)
+                        ekf_interpolate[i+1] = np.polyval(coefficients[i], clk)
+                msg.data = ekf_interpolate.tolist()
+            self.publisher_.publish(msg)
+            # self.get_logger().info('Publishing ekf results: "%s"' % msg.data)
+            self.i += 1
 
 
 def main(args=None):
     rclpy.init(args=args)
-    EKF_publisher = EKF_node()
-    rclpy.spin(EKF_publisher)
-    EKF_publisher.destroy_node()
+
+    # -------------test the ekf node-----------
+    ekf_node = EKF_node()
+    rclpy.spin(ekf_node)
+    ekf_node.destroy_node()
+
     rclpy.shutdown()
 
 
