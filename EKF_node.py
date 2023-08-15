@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rclpy
 from rclpy.node import Node
 from rclpy.clock import Clock
@@ -80,6 +82,21 @@ def f(x, u, ts):  # RK-4 integral for x
     return x_next
 
 
+def coordinate_correction(a_xyz, w_xyz):
+    # e_R_o = np.array([[ 0.99979579, -0.00823928, -0.01845231],
+    #                   [0.00937655, 0.99800595, 0.06241965],
+    #                   [0.01790123, -0.06257992, 0.9978794 ]])
+    o_R_e = np.array([[0.99979579, 0.00937655, 0.01790123],
+                      [-0.00823928, 0.99800595, -0.06257992],
+                      [-0.01845231, 0.06241965, 0.9978794 ]])
+    a_xyz_corrected = o_R_e @ a_xyz
+    w_xyz_corrected = o_R_e @ w_xyz
+    print('------------------------------------------------------------')
+    print('coordinate correction: a_xyz =',a_xyz, 'a_xyz_corrected', a_xyz_corrected)
+    return a_xyz_corrected, w_xyz_corrected
+
+
+""" ------------------- the EKF node ------------------- """
 class EKF_node(Node):
 
     def __init__(self):
@@ -115,9 +132,13 @@ class EKF_node(Node):
 
     def imu_callback(self, msg):
         global data
-        # self.get_logger().info('imu info: "%s"' % msg.angular_velocity.x)
-        imu_data = np.array([(msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec), msg.linear_acceleration.z,
-                             msg.angular_velocity.y, NaN, NaN, NaN, NaN])
+        # doing the coordinate correction !!!
+        a_xyz = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z]).T
+        w_xyz = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z]).T
+        a_xyz_corrected, w_xyz_corrected = coordinate_correction(a_xyz, w_xyz)
+        # store the a_z and w_y and the time stamp in the imu data
+        imu_data = np.array([(msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec), a_xyz_corrected[2],
+                             w_xyz_corrected[1], NaN, NaN, NaN, NaN])
         data = np.concatenate((data, imu_data[np.newaxis, :]), axis=0)
         if data.shape[0] > length:
             data = np.delete(data, 0, axis=0)
@@ -226,7 +247,7 @@ class EKF_node(Node):
                 current_time = 1e-9 * self.get_clock().now().nanoseconds
                 # print('t_stamp:', t_stamp)
                 ts = abs(current_time - t_stamp)
-                if ts < 0.0001 or np.isnan(ekf_result[0]):  # if the time difference is smaller than 0.0001s, the error can be ignored.
+                if ts < 0.0001*1 or np.isnan(ekf_result[0]):  # if the time difference is smaller than 0.0001s, the error can be ignored.
                     clk = t_stamp
                     x_current = ekf_result
                     msg.data = x_current
