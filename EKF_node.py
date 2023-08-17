@@ -89,8 +89,10 @@ def coordinate_correction(a_xyz, w_xyz):
     o_R_e = np.array([[0.99979579, 0.00937655, 0.01790123],
                       [-0.00823928, 0.99800595, -0.06257992],
                       [-0.01845231, 0.06241965, 0.9978794 ]])
-    a_xyz_corrected = o_R_e @ a_xyz
-    w_xyz_corrected = o_R_e @ w_xyz
+    a_xyz_corrected = a_xyz @ o_R_e.T
+    w_xyz_corrected = w_xyz @ o_R_e.T
+    # a_xyz_corrected = o_R_e @ a_xyz
+    # w_xyz_corrected = o_R_e @ w_xyz
     print('------------------------------------------------------------')
     print('coordinate correction: a_xyz =',a_xyz, 'a_xyz_corrected', a_xyz_corrected)
     return a_xyz_corrected, w_xyz_corrected
