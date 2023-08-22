@@ -147,18 +147,8 @@ class KFRealTime:
         """
 
         id_0 = id_1 - 1  # sim start from id_n-1, whose state is initial state of this loop
-        id_u0 = id_0  # id of U start from id_last - 1 , cuz the last u is useless
 
-        # such id of recent u of newest data until id_u0 = -1, if there is no imu data
-        while id_u0 != -1:
-            if self.dataset['sensor'][id_u0] == 'imu':
-                break
-            id_u0 -= 1
-        # get u0
-        if id_u0 != -1:                                             # There are imu data before
-            u = self.dataset['data'][id_u0]
-        else:                                                       # There is no imu data yet, use zero u0
-            u = np.array([[0.], [0.]])
+        u = self._get_last_u(id_1)
 
         # get x0, P0 matrix and ts list
         if id_0 != -1:                                              # There are data before the newest data
@@ -209,6 +199,24 @@ class KFRealTime:
             self.dataset['P'][id_1 + i] = p
         # store the real time x with the largest time stamp
         self.dataset['X_rt'][id_1 + i] = x
+
+    def _get_last_u(self, id_start):
+        """
+        such recent u before id_start, if there is no imu data before, u = 0
+        :param id_start: index start to such
+        :return: u
+        """
+        id_u0 = id_start - 1
+        while id_u0 != -1:
+            if self.dataset['sensor'][id_u0] == 'imu':
+                break
+            id_u0 -= 1
+        # get u0
+        if id_u0 != -1:  # There are imu data before
+            u = self.dataset['data'][id_u0]
+        else:  # There is no imu data yet, use zero u0
+            u = np.array([[0.], [0.]])
+        return u
 
     @property
     def df(self):

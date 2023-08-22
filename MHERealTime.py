@@ -79,8 +79,8 @@ class MHERealTime:
                         'X':        np.array([[]]*4),   # 4  | (4,n) array, states updated continually
                         'X_rt':     np.array([[]]*4),   # 5  | (4,n) array, states in real time  (sent to controller)
                         'W':        np.array([[]]*4),   # 6  | (4,n) array, state noise, result of NLP
-                        't_com':    []}                 # 7  | list[float], computational time
-
+                        't_com':    [],                 # 7  | list[float], computational time
+                        't_nlp':    []}
         # self.last_u = np.array([[0.], [0.]])
 
         # # Objective Function
@@ -178,6 +178,7 @@ class MHERealTime:
                 self.dataset['X'] = np_insert(self.dataset['X'], id_0, x)
                 self.dataset['X_rt'] = np_insert(self.dataset['X_rt'], id_0, x_rt)
                 self.dataset['W'] = np_insert(self.dataset['W'], id_0, np.array([[np.nan]] * 4))
+                t_nlp = 0.
 
             else:   # data_typ == 'vel' or 'tf'
                 self.dataset['seq'].insert(id_0, self.i)  # sorted according to time stamp
@@ -189,7 +190,9 @@ class MHERealTime:
                 self.dataset['W'] = np_insert(self.dataset['W'], id_0, np.array([[0.]] * 4))
 
                 self.update_obj(id_0, u0)
+                t1 = time.perf_counter()
                 xx_all_est, ww_est = self.solve_nlp()   # xx_all_est: (4, M+1) array; ww_est: (4, N) array
+                t_nlp = time.perf_counter() - t1
                 xx_all_est = constrain_yaw_angle(xx_all_est)
 
                 self.dataset['X'][:, self.list_id_all] = xx_all_est     # update all X
@@ -208,8 +211,9 @@ class MHERealTime:
                         self.dataset['X'][:, id_r:id_r+1] = x
                     self.dataset['X_rt'][:, -1:] = x
 
-            t1 = time.perf_counter()
-            self.dataset['t_com'].insert(id_0, t1 - t0)
+            te = time.perf_counter()
+            self.dataset['t_com'].insert(id_0, te - t0)
+            self.dataset['t_nlp'].insert(id_0, t_nlp)
 
         else:   # not yet receive data from TF
             if data_typ == 'tf':
@@ -227,6 +231,7 @@ class MHERealTime:
 
                 t1 = time.perf_counter()
                 self.dataset['t_com'].append(t1 - t0)
+                self.dataset['t_nlp'].append(0.)
 
     def _get_last_u(self, id_start):
         """
@@ -240,9 +245,9 @@ class MHERealTime:
                 break
             id_u0 -= 1
         # get u0
-        if id_u0 != -1:  # There are imu data before
+        if id_u0 != -1:     # There are imu data before
             u = self.dataset['data'][id_u0]
-        else:  # There is no imu data yet, use zero u0
+        else:               # There is no imu data yet, use zero u0
             u = np.array([[0.], [0.]])
         return u
 
@@ -257,9 +262,12 @@ class MHERealTime:
         # len(list_id_mea) >= horizon and list_id_mea include the newest data
         self.list_id_mea = []
         id_mea = self.i
-        while len(self.list_id_mea) < self.horizon or id_mea >= id_0:
+        has_tf = False
+        while len(self.list_id_mea) < self.horizon or id_mea >= id_0 or not has_tf:
             if self.dataset['sensor'][id_mea] != 'imu':
                 self.list_id_mea.append(id_mea)
+                if self.dataset['sensor'][id_mea] == 'tf':
+                    has_tf = True
             if id_mea == 0:     # at beginning, id_mea can reach to 0, real horizon <= horizon
                 break
             id_mea -= 1
@@ -464,8 +472,9 @@ class MHERealTime:
                    'w_y',           # 18
                    'w_theta',       # 19
                    'w_v',           # 20
-                   't_com']         # 21
-        df = pd.DataFrame(data=[[np.nan] * 22] * n, columns=columns)
+                   't_com',         # 21
+                   't_nlp']         # 22
+        df = pd.DataFrame(data=[[np.nan] * 23] * n, columns=columns)
 
         df.iloc[:, 0] = self.dataset['seq']
         df.iloc[:, 1] = self.dataset['time']
@@ -482,5 +491,6 @@ class MHERealTime:
         df.iloc[:, 13:17] = self.dataset['X_rt'].T
         df.iloc[:, 17:21] = self.dataset['W'].T
         df.iloc[:, 21] = self.dataset['t_com']
+        df.iloc[:, 22] = self.dataset['t_nlp']
         return df
 

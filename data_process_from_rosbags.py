@@ -55,7 +55,14 @@ except:
 
 try:
     df_imu = pd.read_csv('./data/' + data_subfold + '/data.hamster2__imu.csv')
-    df_imu = df_imu.iloc[:, [0, 3, 18, 19, 20, 30, 31, 32]]
+    df_imu = df_imu[['__time',
+                     '/hamster2/imu/header.stamp',
+                     '/hamster2/imu/angular_velocity.x',
+                     '/hamster2/imu/angular_velocity.y',
+                     '/hamster2/imu/angular_velocity.z',
+                     '/hamster2/imu/linear_acceleration.x',
+                     '/hamster2/imu/linear_acceleration.y',
+                     '/hamster2/imu/linear_acceleration.z']]
     print("'data.hamster2__imu.csv' loaded to 'df_imu'")
     # rename the data
     df_imu.rename(columns={'/hamster2/imu/header.stamp': 'imu.header.stamp',
@@ -69,18 +76,38 @@ try:
 except:
     print("'data.hamster2__imu.csv' doesn't exist!!!!!")
 
-try:
+try:    # old data without header.stamp
     df_velocity = pd.read_csv('./data/' + data_subfold + '/data.hamster2__velocity.csv')
-    df_velocity = df_velocity.iloc[:, [0, 3]]
+    df_velocity = df_velocity[['__time',
+                               '/hamster2/velocity/data']]
     print("'data.hamster2__velocity.csv' loaded to 'df_velocity'")
     # rename the data
     df_velocity.rename(columns={'/hamster2/velocity/data': 'velocity.v'}, inplace=True)
 except:
-    print("'data.hamster2__velocity.csv' doesn't exist!!!!!")
+    try:    # new data with header.stamp
+        df_velocity = pd.read_csv('./data/' + data_subfold + '/data.hamster2__velocity.csv')
+        df_velocity = df_velocity[['__time',
+                                   '/hamster2/velocity/header.stamp',
+                                   '/hamster2/velocity/velocity']]
+        print("'data.hamster2__velocity.csv' with header.stamp loaded to 'df_velocity'")
+        # rename the data
+        df_velocity.rename(columns={'/hamster2/velocity/header.stamp': 'vel.header.stamp',
+                                    '/hamster2/velocity/velocity': 'velocity.v'
+                                    }, inplace=True)
+    except:
+        print("'data.hamster2__velocity.csv' doesn't exist!!!!!")
 
 try:
     df_tf = pd.read_csv('./data/' + data_subfold + '/data.tf.csv')
-    df_tf = df_tf.iloc[:, [0, 3, 6, 7, 8, 9, 10, 11, 12]]
+    df_tf = df_tf[['__time',
+                   '/tf/transforms.0.header.stamp',
+                   '/tf/transforms.0.transform.translation.x',
+                   '/tf/transforms.0.transform.translation.y',
+                   '/tf/transforms.0.transform.translation.z',
+                   '/tf/transforms.0.transform.rotation.x',
+                   '/tf/transforms.0.transform.rotation.y',
+                   '/tf/transforms.0.transform.rotation.z',
+                   '/tf/transforms.0.transform.rotation.w']]
     print("'data.tf.csv' loaded to 'df_tf'")
     # rename the data
     df_tf.rename(columns={'/tf/transforms.0.header.stamp': 'tf.header.stamp',
