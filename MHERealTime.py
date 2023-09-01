@@ -136,7 +136,7 @@ class MHERealTime:
 
         self.opts = {'print_time': False,
                      'ipopt.max_iter': 50,
-                     'ipopt.print_level': 0,    # 0: print nothing 3:
+                     'ipopt.print_level': 0,    # 0: print nothing, 3:
                      'ipopt.acceptable_tol': 1e-8,
                      'ipopt.acceptable_obj_change_tol': 1e-6}
         # run a very simple nlp to initialize, avoid a large computational time at the beginning
@@ -235,8 +235,8 @@ class MHERealTime:
 
     def _get_last_u(self, id_start):
         """
-        such recent u before id_start, if there is no imu data before, u = 0
-        :param id_start: index start to such
+        search recent u before id_start, if there is no imu data before, u = 0
+        :param id_start: index start to search
         :return: u
         """
         id_u0 = id_start - 1
@@ -332,7 +332,7 @@ class MHERealTime:
         delta_x0 = self.sym_xx[:, 0] - self.xk0
         delta_x0 = nlinear_diff_yaw_angle(delta_x0)
         self.sym_arrival_cost = delta_x0.T @ self.p_matrix @ delta_x0
-        self.sym_arrival_cost = self.sym_arrival_cost * self.r_horizon  # Avoid varying weighting with length of horizon
+        self.sym_arrival_cost = self.sym_arrival_cost# * self.r_horizon  # Avoid varying weighting with length of horizon
         # # Objective function
         self.object_function = self.sym_sum_wqw + self.sym_sum_vrv + self.sym_arrival_cost
 

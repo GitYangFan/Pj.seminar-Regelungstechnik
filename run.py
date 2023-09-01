@@ -1,5 +1,4 @@
 import os
-import casadi as ca
 from MheSingleShooting import MheSingleShooting
 from MheMultipleShooting import MheMultipleShooting
 from MHERealTime import MHERealTime
@@ -39,6 +38,8 @@ else:
 # Dvelocity['velocity.v'] = -Dvelocity['velocity.v']/1000     # change the unit of velocity data, only for old data
 # ===============================================================================================================
 
+# Dtf["__time"] = Dtf["__time"] + 0.2         # add constant delay [s]
+
 # merge imu vel tf raw data
 df_data = Dimu.merge(Dvelocity, how='outer', on=['__time', 'time'])
 df_data = df_data.merge(Dtf, how='outer', on=['__time', 'time'])
@@ -63,28 +64,42 @@ s_tf = np.isnan(data[:, 5])
 # R_tf = np.diag([0.01, 0.01, 0.01])    # covariance matrix for TF measurement noise
 # P = np.diag([10, 10, 10, 10])       # covariance matrix for arrival cost
 # # for kf
-Q = np.diag([10, 10, 10, 10])         # process noise
-R_vel = np.array([[0.1]])        # covariance matrix for velocity measurement noise
-R_tf = np.diag([0.1, 0.1, 0.1])    # covariance matrix for TF measurement noise
-P = np.diag([10, 10, 10, 10])         # initial covariance matrix for current state
+# Q = np.diag([10, 10, 10, 10])         # process noise
+# R_vel = np.array([[0.1]])        # covariance matrix for velocity measurement noise
+# R_tf = np.diag([0.1, 0.1, 0.1])    # covariance matrix for TF measurement noise
+# P = np.diag([10, 10, 10, 10])         # initial covariance matrix for current state
+
+# optimal
+horizon = 20
+Q = np.diag([0.0001*1000, 0.0001*1000, 0.005*1000, 0.06*1000])
+R_vel = np.array([[0.0001*1000]])
+R_tf = np.diag([0.00000001*1000]*3)
+P = np.diag([0.0001*1000]*4)
+# # noise by tf
+# horizon = 20
+# Q = np.diag([0.0001*1000, 0.0001*1000, 0.005*1000, 0.06*1000])
+# R_vel = np.array([[0.0001*1000]])
+# R_tf = np.diag([(0.01**2) *1000]*3)
+# P = np.diag([0.0001*1000]*4)
+
 
 # # Choose the Algorithm
 # sim = MheSingleShooting(horizon, Q, R_vel, R_tf, P)
 # sim = MheMultipleShooting(horizon, Q, R_vel, R_tf, P)
-# sim = MHERealTime(horizon, Q, R_vel, R_tf, P)
-sim = KFRealTime(Q, R_vel, R_tf, P)
+sim = MHERealTime(horizon, Q, R_vel, R_tf, P)
+# sim = KFRealTime(Q, R_vel, R_tf, P)
 
 # # Set the file name in which the simulation result is saved
-# file_name = 'sim_mhe_multiple_correctedimu'
-# file_name = 'sim_mhe_multiple_cos'
-# file_name = 'sim_mhe_multiple_tan'
-# file_name = 'sim_mhe_multiple_sin'
-# file_name = 'sim_mhe_multiple_mod'
-# file_name = 'MHE'
-# file_name = 'MHE_nodelay'
 file_name = 'KF'
-# file_name = 'KF_nodelay'
+# file_name = 'MHE'
+# file_name = 'KF0'
+# file_name = 'MHE0'
+# file_name = 'KF_delay200'
+# file_name = 'MHE_delay200'
+# file_name = 'KF_noise'
+# file_name = 'MHE_noise'
 
+np.random.seed(50)
 
 sim.initialization()
 for i in range(len(data)):
@@ -99,13 +114,13 @@ for i in range(len(data)):
     elif not s_tf[i]:
         data_typ = 'tf'
         t_stamp = data[i, 1]
-        value = data[i, 5:8].reshape(3, 1)
+        value = data[i, 5:8].reshape(3, 1)  #+ np.random.normal(0, 0.01, size=(3, 1)) # add noise
     print("Iteration:", i+1, '/', len(data))
     sim(t_stamp, data_typ, value)
     # Record simulation status in halfway
-    if i == 4600:
-        sim.df.to_csv('./sim_result/' + file_name + '_halfway.csv')
-        print("saved halfway")
+    # if i == 4600:
+    #     sim.df.to_csv('./sim_result/' + file_name + '_halfway.csv')
+    #     print("saved halfway")
 
 sim.df.to_csv('./sim_result/' + file_name + '.csv')
 

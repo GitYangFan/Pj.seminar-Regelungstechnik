@@ -202,8 +202,8 @@ class KFRealTime:
 
     def _get_last_u(self, id_start):
         """
-        such recent u before id_start, if there is no imu data before, u = 0
-        :param id_start: index start to such
+        search recent u before id_start, if there is no imu data before, u = 0
+        :param id_start: index start to search
         :return: u
         """
         id_u0 = id_start - 1
