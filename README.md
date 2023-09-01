@@ -2,7 +2,7 @@
 Let's make Hamster! 
 This repository is used to store and exchange our code and data related to this project Hamster in Pj. Seminar Regelungstechnik. Let's unleash your creativity!
 
-## If only interest in the two Algorithm, turn to branch "Handong" and read the following guide:
+## If only interest in the two Algorithm mentioned in the report, turn to branch "Handong" and read the following guide:
 ### the codes of two methods introduced in the report are in files:
 `KFRealTime.py`\
 `MHERealTime.py`
