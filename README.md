@@ -2,6 +2,13 @@
 Let's make Hamster! 
 This repository is used to store and exchange our code and data related to this project Hamster in Pj. Seminar Regelungstechnik. Let's unleash your creativity!
 
+# The current version of Hamster code is uploaded here and also can be found in gitlab with branch "Baho"
+- The type of the velocity message was changed to add time stamp
+- Small changes were done in packages "hamster_driver", "hamster_interfaces" and "tracking_controller".
+- Changes in the code are commented with "//Project seminar"
+
+
+
 ## If only interest in the two Algorithm mentioned in the report, turn to branch "Handong" and read the following guide:
 ### the codes of two methods introduced in the report are in files:
 `KFRealTime.py`\
