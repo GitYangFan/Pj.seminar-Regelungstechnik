@@ -1,8 +1,0 @@
-1. Change to the project directory 
-cd hamster_ros2_software
-2. Build the packages
-colcon build --symlink-install
-3. (If the error occures that ackermann msgs are not installed)
-sudo apt install ros-humble-ackermann-msgs
-4. Source the package
-source /path-to-workspace/install/setup.bash

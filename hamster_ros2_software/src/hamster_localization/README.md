@@ -1,2 +1,0 @@
-## hamster_localization
-
