@@ -25,3 +25,8 @@ Refer to `Gaussian Process Regression.ipynb` and part of `plot_sim_result.py`
 
 ### Coordinate Correction
 Refer to `Coordinate Correction.ipynb` and `o_R_e.csv`
+
+### Attention
+The code will record all the info during running. 
+If the hardware to run the algorithms has memery limit, please add the funtionality that delete the redundance data.
+E.g., cut the `self.dataset` of classes in  `KFRealTime.py` and `MHERealTime.py`, and correct `self.i`.
